@@ -9,6 +9,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from datetime import timedelta, timezone
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
+import bcrypt
 
 load_dotenv()
 
@@ -30,23 +31,14 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[MONGO_DB]
 COL_USER = db["user_details"]
 COL_CODE = db["discount_code"]
+COL_CRED = db["influencer_credentials"]
 
-CREDENTIALS = {
-    "sukhkarman": {"password": "sukhkarman@diffrun123", "role": "influencer", "coupon_code": "SUKHKARMAN5"},
-    "sam": {"password": "sam@diffrun123", "role": "influencer", "coupon_code": "SAM5"},
-    "mrsnambiar": {"password": "mrsnambiar@diffrun123", "role": "influencer", "coupon_code": "MRSNAMBIAR15"},
-    "akmemon": {"password": "akmemon@diffrun123", "role": "influencer", "coupon_code": "AKMEMON15"},
-    "tanvi": {"password": "tanvi@diffrun123", "role": "influencer", "coupon_code": "TANVI15"},
-    "perky": {"password": "perky@diffrun123", "role": "influencer", "coupon_code": "PERKY15"},
-    "special": {"password": "special@diffrun123", "role": "influencer", "coupon_code": "SPECIAL15"},
-    "jishu": {"password": "jishu@diffrun123", "role": "influencer", "coupon_code": "JISHU15"},
-    "jessica": {"password": "jessica@diffrun123", "role": "influencer", "coupon_code": "JESSICA15"},
-    "mischief": {"password": "mischief@diffrun123", "role": "influencer", "coupon_code": "MISCHIEF15"},
-    "mohmaya": {"password": "mohmaya@1234!", "role": "influencer", "coupon_code": "MOHMAYA"},
-    "shaira": {"password": "shaira@1234!", "role": "influencer", "coupon_code": "SHAIRA15"},
-    "twisha": {"password": "twisha@diffrun123", "role": "influencer", "coupon_code": "TWISHA15"},
-    "admin": {"password": "admin", "role": "admin", "coupon_code": None}
-}
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(plain.encode("utf-8")[:72], hashed.encode("utf-8"))
+    except Exception:
+        return False
+
 
 TOKEN_TTL_DAYS = 7
 
@@ -142,20 +134,24 @@ def sign_portal_token(role: str, coupon_code: Optional[str]) -> str:
 async def login(body: LoginRequest):
     u = body.username.strip()
     p = body.password
-
-    # 1) quick existence check
-    record = CREDENTIALS.get(u)
+ 
+    # 1) look up the user in the DB
+    record = await COL_CRED.find_one({"username": u})
     if not record:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    # 2) check password (plaintext compare for minimal setup)
-    if p != record["password"]:
+ 
+    # 2) verify the password against the stored bcrypt hash.
+    #    Existing users' passwords were migrated as-is, so the password
+    #    they already know continues to work.
+    if not verify_password(p, record.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-
+ 
     role = record["role"]
     coupon_code = record.get("coupon_code")
     token = sign_portal_token(role=role, coupon_code=coupon_code)
     return LoginResponse(token=token, role=role)
+ 
+
 
 
 @app.get("/api/influencer/summary", response_model=SummaryResponse)
