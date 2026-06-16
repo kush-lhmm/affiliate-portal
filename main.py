@@ -44,6 +44,7 @@ CREDENTIALS = {
     "mischief": {"password": "mischief@diffrun123", "role": "influencer", "coupon_code": "MISCHIEF15"},
     "mohmaya": {"password": "mohmaya@1234!", "role": "influencer", "coupon_code": "MOHMAYA"},
     "shaira": {"password": "shaira@1234!", "role": "influencer", "coupon_code": "SHAIRA15"},
+    "twisha": {"password": "twisha@diffrun123", "role": "influencer", "coupon_code": "TWISHA15"},
     "admin": {"password": "admin", "role": "admin", "coupon_code": None}
 }
 
